@@ -177,9 +177,9 @@ for y in range(frame.height):
 
         # jitter the ray
 
-        r = 0
-        g = 0
-        b = 0
+        r = 170
+        g = 169
+        b = 173
         samples = 128
         for i in range(samples):
             ray2 = Ray(Point3D.fromVector(ray.origin.vector.clone()), ray.direction.clone())
@@ -263,7 +263,8 @@ for y in range(frame.height):
 ##Write the buffer out to a file
 
 #Open the output file in binary mode
-f = open('./saved.png', 'wb')
+# f = open('./saved.png', 'wb')
+f = open('./lightsaber_render.png', 'wb')
 
 #Create a write object
 w = png.Writer(frame.width, frame.height, greyscale=False)
