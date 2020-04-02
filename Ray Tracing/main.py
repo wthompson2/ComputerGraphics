@@ -1,13 +1,40 @@
-#python -m pip install pypng
+""" 
+To run this program do the following:
+
+First, install the pip pacakages by running the following
+python -m pip install -r requirements.txt
+
+Then run this main file by running the following
+python main.py
+
+Note that this program is built to run in python 3
+
+If you machine defaults to running python 2 when you run python
+from your shell/command line, it won't work
+
+You may need to run
+python3 main.py to get the program to run
+
+
+Written by B. Ricks, @bricksphd, 
+
+Professor at unomaha.edu
+
+MIT License, 2020
+
+"""
+
+
 import png
 import math
+import random
 
 from Frame import Frame
-from Ray import Ray
+from Vector import Vector
 from Point3D import Point3D
+from Ray import Ray
 from AreaLight import AreaLight
 from Camera import Camera
-from Color import Color
 from DirectionalLight import DirectionalLight
 from Light import Light
 from Material import Material
@@ -24,131 +51,214 @@ from SpotLight import SpotLight
 
 print("Starting our ray tracer")
 
+
+# Minimum for a ray tracer
+# A frame to render to
+# A camera
+# A light
+# An object to render
+
+
 frame = Frame(256, 256)
-    
-directionalLightX = 0
-directionalLightY = -1
-directionalLightZ = 0
 
-for y in range(256):
-    for x in range(256):
-        # Pattern to move between reference spaces
-        # 1. Divide by maximum value
-        # 2. Subtract by .5 so I'm center about 0
-        # 3. Mltiply by the biggest number in the new space
-        cameraX = x/255 #1.
-        cameraX = cameraX - .5 #2.
-        cameraX = cameraX * 2 #3.
+cameraOrigin = Point3D(0,0,1)
+origin = Point3D(0,0,0)
+cameraLookAt = origin
+cameraUp = Vector(0,1,0)
+cameraBackgroundColor = Vector(0,0,0)
+fov = 45 / 360 * math.pi * 2 # convert 45 degrees to radians. Should result in pi/4 ~= .785
 
-        cameraY = y/255
-        cameraY = cameraY - .5
-        cameraY = cameraY * 2
-        cameraY = cameraY * -1 # Account for flipped Y
+camera = Camera(cameraOrigin, cameraLookAt, cameraUp, fov, cameraBackgroundColor)
 
-        pixelX = cameraX # Just because we set it up right
-        pixelY = cameraY
-        pixelZ = 0
+lightDirection = Vector(0,-1,0)
+lightColor = Vector(255,255,255)
 
-        originX = 0
-        originY = 0
-        originZ = 1
+light = DirectionalLight(lightColor, 1, lightDirection)
 
-        sadDirectionX = pixelX - originX
-        sadDirectionY = pixelY - originY
-        sadDirectionZ = pixelZ - originZ
+sphereCenter = origin
+sphereRadius = .5
+sphereMaterialColor = Vector(255, 0, 0)
+sphereMaterialSpecularColor = Vector(255,255,255)
+sphereMaterialSpecularStrength = 1
 
-        lengthSad = math.sqrt(sadDirectionX*sadDirectionX + sadDirectionY*sadDirectionY + sadDirectionZ*sadDirectionZ)
+sphereMaterial = Material(sphereMaterialColor, sphereMaterialSpecularColor, sphereMaterialSpecularStrength)
 
-        directionX = sadDirectionX / lengthSad
-        directionY = sadDirectionY / lengthSad
-        directionZ = sadDirectionZ / lengthSad
+sphere = Sphere(sphereMaterial, sphereCenter, sphereRadius)
 
-        origin = Point3D(originX, originY, originZ)
-        direction = Point3D(directionX, directionY, directionZ)
-        center = Point3D(0,0,0)
-        radius = .5
+lights = [light]
+objects = [sphere]
 
-        e = origin.minus(center)
-        a = direction.dot(direction)
-        b = 2*direction.dot(e)
-        c = e.dot(e)-radius*radius
+#Now loop over every pixel in our frame
 
-        discriminant = b*b - 4 * a * c
-        if disriminant < 0
-            frame.buffer[y*256*3+x*3] = 0
-            frame.buffer[y*256*3+1+x*3] = 0
-            frame.buffer[y*256*3+2+x*3] = 0
+#For every pixel
+#Figure out where in camera space that pixel is
+#Then figure out where in world space that pixel is
+#Then shoot a ray from the world space origin of the camera to that world space location
+#Then loop over each object in the scene
+#For ever object that ray collides with
+#Find out which one has the closest collission
+#That's our hit
+#If we don't have a hit, return the background color
+#Then calculate the color based on the direction to the right
+
+# Ray - Ray we're sending out
+# orgin object - Object we don't want to self-intersect with
+def hitDistance(ray, originObject):
+    closestHit = float("inf")
+    closestObjectIndex = -1
+    for object in objects:
+        if object != originObject:
+            t = object.intersect(ray)
+            if t >= 0 and t < closestHit:
+                closestHit = t
+                closestObjectIndex = objects.index(object)
+    return [closestHit, closestObjectIndex]
+
+def getColor(ray, originObject, recursionLimit):
+    if recursionLimit <= 0:
+        return Vector(0,0,0)
+
+    [t, collisionObjectIndex] = hitDistance(ray, originObject)
+    if collisionObjectIndex != -1:
+        object = objects[collisionObjectIndex]
+        collisionPoint = Point3D.fromVector(ray.direction.toScaled(t).plus(camera.origin.vector))
+        normalDirection = collisionPoint.minus(object.center)
+        normal = normalDirection.toNormalized()
+
+        ambient = Vector(30, 30, 30)
+        diffuse = Vector(0,0,0)
+
+        for light in lights:
+            lightDiffuse = Vector(0,0,0)
+            toLight = light.direction.toScaled(-1)
+            product = toLight.dot(normal)
+            if product < 0:
+                product = 0
+            lightDiffuse = light.color.toScaled(product)
+            diffuse = diffuse.plus(lightDiffuse)                        
+
+        color = ambient.plus(diffuse)                    
         
-        else:
-            optionA = (-b - math.sqrt(discriminant))/(2*a)
-            optionB = (-b + math.sqrt(discriminant))/(2*a)
+        return color
+    else:
+        return Vector(0,0,0)
+    
 
-            t = -1
-            if optionA < 0 and optionB < 0:
-                t = optionB
-            elif optionA >= 0:
-                t = optionA
-            else:
-                t = optionB
 
-            if t < 0
-                frame.buffer[y*256*3+x*3] = 0
-                frame.buffer[y*256*3+1+x*3] = 0
-                frame.buffer[y*256*3+2+x*3] = 0
-            else:
-                ambient = 10
-                diffuse = 0
-                specular = 0
+for y in range(frame.height):
+    for x in range(frame.width):
+        #Convert from screen space to camera space
+        #Then from frame camera space to world space
+        yPercent = -1 * (y / frame.height * 2 - 1) #-1 because images have y down
+        xPercent = x / frame.width * 2 -1
+        #yPercent and xPercent are now in [-1,1]
+        #Now we multiply by the camera width and height at the lookAt point
+        #To do that we first get the distance from the camera origin and the camera destination
+        #This becomes the hyponetus for our triangle calculations
 
-                # I need the normal
-                # I need the light direction
-                # I need a dot product
+        toLookAt = camera.lookAt.minus(camera.origin)
+        #toLookAt is a vector from the origin to the look at point.
+        #We need this to calculate the camera right vector
 
-                collisionX = directionX * t + originX
-                collisionX = directionY * t + originY
-                collisionX = directionZ * t + originZ
+        distance = toLookAt.length()
+        toLookAtNormalized = toLookAt.toNormalized()
+        width = math.cos(camera.fov) * distance
+        height = math.cos(camera.fov) * distance
+        #width and height should be the same unless we set different fovs for width and height
 
-                uNNx = collisionX - center.x
-                uNNy = collisionY - center.y
-                uNNz = collisionZ - center.z
+        # TODO: This should be toLookAtNormalize
+        cameraRight = toLookAt.cross(camera.up)
+        rightWorld = cameraRight.toScaled(width * xPercent)
+        upWorld =  camera.up.toScaled(height * yPercent)
+        pixelLookAt = Point3D.fromVector(upWorld.plus(rightWorld))
+        #We now have our world look at points
+        #We need to generate our look at ray and NORMALIZE IT!!!
+        ray = Ray(camera.origin, pixelLookAt.minus(camera.origin).toNormalized())
 
-                normalLength = math.sqrt(uNNx**2 + uNNy**2 + uNNz**2)
-                circleNormalX = uNNx / normalLength
-                circleNormalY = uNNy / normalLength
-                circleNormalZ = uNNz / normalLength
+        # jitter the ray
 
-                collisionAngle = math.atan2(circleNormalY, circleNormalX)
-                collisionAngle2 = math.atan2(circleNormalX, circleNormalZ)
+        r = 0
+        g = 0
+        b = 0
+        samples = 128
+        for i in range(samples):
+            ray2 = Ray(Point3D.fromVector(ray.origin.vector.clone()), ray.direction.clone())
+            ray2.direction.x += (random.random() - .5)*2*width/frame.width
+            ray2.direction.y += (random.random() - .5)*2*height/frame.height
+            ray2.direction = ray2.direction.toNormalized()
+            color = getColor(ray2, None, 1)
+            r += color.x
+            g += color.y
+            b += color.z
+        r /= samples
+        g /= samples
+        b /= samples
 
-                toLightX = -directionalLightX
-                toLightY = -directionalLightY
-                toLightZ = -directionalLightZ
 
-                dotProduct = circleNormalX * toLightX + circleNormalY * toLightY + circleNormalZ + toLightZ
-                if doProduct < 0:
-                    dotProduct = 0
+        frame.set(x,y, Vector(r,g,b))
 
-                if (math.floor(collisionAngle * 100) % 2 == 0):
-                    dotProduct = 0
+        # How to speed this up?
+        # Parallel Processing
+        # Don't use python
+        # KD Trees - Ray collision algorithm is O(N) N is the number of objects
+        # Importance Sampling
+        
 
-                diffuseR = 255 * dotProduct
-                diffuseG = 255 * dotProduct
-                diffuseB = 255 * dotProduct
 
-                cR = math.floor(ambient + diffuseR + specular)
-                cG = math.floor(ambient + diffuseG + specular)
-                cB = math.floor(ambient + diffuseB + specular)
-                
-                if cR > 255:
-                    cR = 255
-                if cG > 255:
-                    cG = 255
-                if cB > 255:
-                    cB = 255
+        # [t, collisionObjectIndex] = hitDistance(ray, None)
+        # if collisionObjectIndex != -1:
+        #     object = objects[collisionObjectIndex]
+        #     collisionPoint = Point3D.fromVector(ray.direction.toScaled(t).plus(camera.origin.vector))
+        #     normalDirection = collisionPoint.minus(object.center)
+        #     normal = normalDirection.toNormalized()
 
-                frame.buffer[y*256*3+x*3] = cR
-                frame.buffer[y*256*3+x*3+1] = cG
-                frame.buffer[y*256*3+x*3+2] = cB
+        #     ambient = Vector(30, 30, 30)
+        #     diffuse = Vector(0,0,0)
+
+        #     for light in lights:
+        #         lightDiffuse = Vector(0,0,0)
+        #         toLight = light.direction.toScaled(-1)
+        #         product = toLight.dot(normal)
+        #         if product < 0:
+        #             product = 0
+        #         lightDiffuse = light.color.toScaled(product)
+        #         diffuse = diffuse.plus(lightDiffuse)                        
+
+        #     color = ambient.plus(diffuse)                    
+            
+        #     frame.set(x,y,color)
+        # else:
+        #     frame.set(x,y, Vector(0,0,0))
+
+
+        # for object in objects:
+        #     try:
+        #         t = object.intersect(ray)
+        #         if t >= 0:
+        #             collisionPoint = Point3D.fromVector(ray.direction.toScaled(t).plus(camera.origin.vector))
+        #             normalDirection = collisionPoint.minus(object.center)
+        #             normal = normalDirection.toNormalized()
+
+        #             ambient = Vector(30, 30, 30)
+        #             diffuse = Vector(0,0,0)
+
+        #             for light in lights:
+        #                 lightDiffuse = Vector(0,0,0)
+        #                 toLight = light.direction.toScaled(-1)
+        #                 product = toLight.dot(normal)
+        #                 if product < 0:
+        #                     product = 0
+        #                 lightDiffuse = light.color.toScaled(product)
+        #                 diffuse = diffuse.plus(lightDiffuse)                        
+
+        #             color = ambient.plus(diffuse)                    
+                    
+        #             frame.set(x,y,color)
+        #         else:
+        #             frame.set(x,y, Vector(0,0,0))
+        #     except:
+        #         frame.set(x,y, Vector(0,0,0))   
+
 
 ##Write the buffer out to a file
 
