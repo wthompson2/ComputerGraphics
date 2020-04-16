@@ -25,7 +25,7 @@ MIT License, 2020
 """
 
 
-import png
+# import png
 import math
 import random
 
@@ -75,6 +75,7 @@ lightColor = Vector(255,255,255)
 
 light = DirectionalLight(lightColor, 1, lightDirection)
 
+## What needs to be changed here? ##
 sphereCenter = origin
 sphereRadius = .5
 sphereMaterialColor = Vector(255, 0, 0)
