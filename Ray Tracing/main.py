@@ -25,7 +25,7 @@ MIT License, 2020
 """
 
 
-# import png
+import png
 import math
 import random
 
